@@ -225,6 +225,12 @@ app.delete('/api/user/delete/:username', (req, res) => {
     res.status(200).send({ success: true, data: null, errors: [] });
 });
 
+//Get all files that the user has uploaded
+app.get('/api/user/files', authenticateUser, (req, res) => {
+    const files = dbConnection.prepare("SELECT * FROM files WHERE owner = ?").all(req.user.username);
+    res.status(200).send({ success: true, data: { files }, errors: [] });
+});
+
 // Start server
 const port = process.env.PORT || 3020;
 app.listen(port, () => {
