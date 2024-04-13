@@ -1,47 +1,43 @@
-console.clear();
-/**********************************************************************
- * File grid by printedwaste
- * Host files that are accessible by authenticated users
- *********************************************************************/
+import express from "express";
+import db from 'better-sqlite3';
+import path from "path";
+import cors from "cors";
+import morgan from "morgan";
+import favicon from 'serve-favicon';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import formData from 'express-form-data';
+import fs from 'fs';
+import multer from 'multer';
+import bodyParser from 'body-parser';
+import mime from 'mime';
+import dotenv from 'dotenv';
+import { dirname } from 'path';
+import { fileURLToPath } from 'url';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
+dotenv.config();
 
-/*******************Packages******************/
-const express = require("express");
 const app = express();
-const db = require('better-sqlite3')('main.db');
-const path = require("path");
-const cors = require("cors");
-const morgan = require("morgan");
-const favicon = require('serve-favicon');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const formData = require('express-form-data');
-const fs = require('fs');
-const multer = require('multer');
-require('dotenv').config();
+const dbConnection = db('main.db');
 
+// Create tables
+dbConnection.prepare("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, password TEXT)").run();
+dbConnection.prepare("CREATE TABLE IF NOT EXISTS files (id INTEGER PRIMARY KEY AUTOINCREMENT, filename TEXT, owner TEXT, fileID TEXT, private BOOLEAN, accessKey TEXT, ext TEXT)").run();
 
-//Create 2 tables, one for users and one for files
-db.prepare("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, password TEXT)").run();
-db.prepare("CREATE TABLE IF NOT EXISTS files (id INTEGER PRIMARY KEY AUTOINCREMENT, filename TEXT, owner TEXT, fileID TEXT, private BOOLEAN, accessKey TEXT)").run();
-
-
-/*******************Middleware******************/
-morgan.token('formattedMeta', function (req, res) {
+// Middleware
+morgan.token('formattedMeta', (req, res) => {
     const formattedTimestamp = `[${new Date().toLocaleString()}]`.padEnd(25);
-
     return `${formattedTimestamp} ${req.method} ${req.originalUrl}`;
 });
 app.use(morgan(':formattedMeta :response-time ms'));
 app.use(favicon(path.join(__dirname, 'favicon.ico')));
-app.use(express.urlencoded({ extended: true }));
+app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cors());
 app.use(formData.parse());
 
-
-
-/*******************Auth******************/
+// Authentication
 const authenticateUser = (req, res, next) => {
     const token = req.headers.authorization;
 
@@ -64,6 +60,7 @@ const authenticateUser = (req, res, next) => {
         return res.status(401).send({ errors: ["Invalid token"], success: false, data: null });
     }
 };
+
 const verifyToken = (token) => {
     try {
         const decoded = jwt.verify(token, process.env.JWT);
@@ -73,85 +70,134 @@ const verifyToken = (token) => {
     }
 };
 
-
-/*******************Main******************/
+// Main route
 app.get('/', (req, res) => {
     res.send("Hello World");
-})
+});
 
+// Generate File ID
 const generateFileID = () => {
-    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    //8 characters
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 8; i > 0; --i) result += chars[Math.floor(Math.random() * chars.length)];
+    return result;
+};
+
+const generateAccessKey = () => {
+    //36 characters
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 36; i > 0; --i) result += chars[Math.floor(Math.random() * chars.length)];
+    return result;
 }
 
 
 
-
-/*******************API******************/
-app.get('/api/file/:id', (req, res) => {
-    const file = db.prepare("SELECT fileID, private, accessKey, mimetype, size FROM files WHERE id = ?").get(req.params.id);
+//File routes
+app.get('/file/view/:id', async (req, res) => {
+    //Only files that can be rendered in the browser can be viewed, otherwise, download the file
+    const file = await dbConnection.prepare("SELECT fileID, filename, private, ext FROM files WHERE fileID = ?").get(req.params.id);
     if (!file) return res.status(404).send({ errors: ["File not found"], status: false, data: null });
 
-    if (file.private) {
-        verifyToken(req.headers.authorization);
-        return res.status(401).send({ errors: ["Unauthorized"], status: false, data: null });
+    if (file.private == true) {
+        const tokenRes = verifyToken(req.headers.authorization);
+        if (!tokenRes) return res.status(401).send({ errors: ["Unauthorized"], status: false, data: null });
     }
 
     if (file.accessKey && req.query.key !== file.accessKey) {
         return res.status(401).send({ errors: ["Unauthorized"], status: false, data: null });
     }
 
-    const fileLocation = path.join(__dirname, 'files', file.fileID);
+    const fileLocation = path.join(__dirname, 'files', `${file.fileID + file.ext}`);
+
+    const file1 = fs.readFileSync(fileLocation);
+    res.contentType(mime.getType(fileLocation));
+    res.send(file1);
+});
+
+app.get('/file/download/:id', async (req, res) => {
+    const file = await dbConnection.prepare("SELECT fileID, filename, private, ext FROM files WHERE fileID = ?").get(req.params.id);
+    if (!file) return res.status(404).send({ errors: ["File not found"], status: false, data: null });
+
+    if (file.private == true) {
+        const tokenRes = verifyToken(req.headers.authorization);
+        if (!tokenRes) return res.status(401).send({ errors: ["Unauthorized"], status: false, data: null });
+    }
+
+    if (file.accessKey && req.query.key !== file.accessKey) {
+        return res.status(401).send({ errors: ["Unauthorized"], status: false, data: null });
+    }
+
+    const fileLocation = path.join(__dirname, 'files', `${file.fileID + file.ext}`);
+    res.download(fileLocation, file.filename);
+});
+
+
+
+// API Routes
+app.get('/api/file/:id', async (req, res) => {
+    const file = await dbConnection.prepare("SELECT fileID, filename, private, ext FROM files WHERE fileID = ?").get(req.params.id);
+    if (!file) return res.status(404).send({ errors: ["File not found"], status: false, data: null });
+
+    if (file.private == true) {
+        const tokenRes = verifyToken(req.headers.authorization);
+        if (!tokenRes) return res.status(401).send({ errors: ["Unauthorized"], status: false, data: null });
+    }
+
+    if (file.accessKey && req.query.key !== file.accessKey) {
+        return res.status(401).send({ errors: ["Unauthorized"], status: false, data: null });
+    }
+
+    const fileLocation = path.join(__dirname, 'files', `${file.fileID + file.ext}`);
     fs.stat(fileLocation, (err, stats) => {
-        if (err) {
-            return res.status(500).send({ errors: ["Internal Server Error"], status: false, data: null });
-        }
-        const fileSizeInBytes = stats.size;
-        return res.status(200).send({ status: true, data: { file, fileSizeInBytes }, errors: [] });
+        if (err) return res.status(500).send({ errors: ["Internal server err"], status: false, data: null });
+        file.size = stats.size;
+        file.type = mime.getType(fileLocation);
+        return res.status(200).send({ status: true, data: { file }, errors: [] });
     });
 });
 
-// Upload file endpoint. For fileID, generate one. Save the file name to db then rename and save the file to the server with the fileID. Use multer and 100mb limit then return the fileID
 app.post('/api/file/upload', authenticateUser, multer({ dest: 'files/', limits: { fileSize: 100000000 } }).single('file'), (req, res) => {
-    const { file } = req;
-    const { private = false, accessKey = "" } = req.body;
-    if(!file) return res.status(400).send({ errors: ["File required"], success: false, data: null });
-    const fileID = generateFileID();
-    const filename = file.filename;
+    const file = req.files.file;
+    const { self = false, accessKey = false } = req.body;
+    if (!file) return res.status(400).send({ errors: ["File required"], success: false, data: null });
+    const fileID = generateFileID()
+    const filename = file.name;
     const owner = req.user.username;
 
-    const insertFile = db.prepare("INSERT INTO files (filename, owner, fileID, private, accessKey, mimetype, size) VALUES (?, ?, ?, ?, ?, ?, ?)");
-    const result = insertFile.run(filename, owner, fileID, private, accessKey, file.mimetype, file.size);
+    const insertFile = dbConnection.prepare("INSERT INTO files (filename, owner, fileID, private, accessKey, ext) VALUES (?, ?, ?, ?, ?, ?)");
+    const result = insertFile.run(filename, owner, fileID, `${self}`, accessKey ? generateAccessKey() : null, `${path.extname(file.name)}`);
+    if (result.changes === 0) return res.status(500).send({ errors: ["Internal Server Error"], success: false, data: null });
 
-    fs.renameSync(file.path, path.join(__dirname, 'files', fileID));
+    fs.renameSync(file.path, path.join(__dirname, 'files', `${fileID + path.extname(file.name)}`));
 
-    res.status(201).send({ success: true, data: { fileID: result.lastInsertRowid }, errors: [] });
+    res.status(201).send({ success: true, data: { fileID: fileID }, errors: [] });
 });
 
-// Register endpoint
-app.post('/api/user/register', (req, res) => {
+app.post('/api/user/register', async (req, res) => {
     const { username = "", password = "", registerKey = "" } = req.body;
     if (registerKey !== process.env.RKEY) {
         return res.status(401).send({ errors: ["Invalid register key"], success: false, data: null });
     }
 
-    const existingUser = db.prepare("SELECT * FROM users WHERE username = ?").get(username);
+    const existingUser = await dbConnection.prepare("SELECT * FROM users WHERE username = ?").get(username);
     if (existingUser) {
         return res.status(400).send({ errors: ["Username already exists"], success: false, data: null });
     }
 
     const hashedPassword = bcrypt.hashSync(password, 10);
 
-    const insertUser = db.prepare("INSERT INTO users (username, password) VALUES (?, ?)");
+    const insertUser = dbConnection.prepare("INSERT INTO users (username, password) VALUES (?, ?)");
     const result = insertUser.run(username, hashedPassword);
 
     res.status(201).send({ success: true, data: { id: result.lastInsertRowid }, errors: [] });
 });
 
-// Login endpoint
 app.post('/api/user/login', (req, res) => {
     const { username = "", password = "" } = req.body;
 
-    const user = db.prepare("SELECT * FROM users WHERE username = ?").get(username);
+    const user = dbConnection.prepare("SELECT * FROM users WHERE username = ?").get(username);
 
     if (!user) {
         return res.status(401).send({ errors: ["Invalid username or password"], success: false, data: null });
@@ -165,11 +211,10 @@ app.post('/api/user/login', (req, res) => {
     res.status(200).send({ success: true, data: { token }, errors: [] });
 });
 
-// Delete user endpoint
 app.delete('/api/user/delete/:username', (req, res) => {
     const { username } = req.params;
 
-    const result = db.prepare("DELETE FROM users WHERE username = ?").run(username);
+    const result = dbConnection.prepare("DELETE FROM users WHERE username = ?").run(username);
 
     if (result.changes === 0) {
         return res.status(404).send({ errors: ["User not found"], success: false, data: null });
@@ -178,9 +223,8 @@ app.delete('/api/user/delete/:username', (req, res) => {
     res.status(200).send({ success: true, data: null, errors: [] });
 });
 
-
-//Start server
+// Start server
 const port = process.env.PORT || 3020;
 app.listen(port, () => {
-    console.log(`[${new Date().toLocaleString()}]   Server Started on port ${process.env.port || 3020}`.padEnd(25))
+    console.log(`[${new Date().toLocaleString()}]   Server Started on port ${process.env.port || 3020}`.padEnd(25));
 });
