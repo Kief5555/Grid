@@ -95,7 +95,7 @@ const generateAccessKey = () => {
 
 
 //File routes
-app.get('/file/view/:id', async (req, res) => {
+app.get('/view/:id', async (req, res) => {
     //Only files that can be rendered in the browser can be viewed, otherwise, download the file
     const file = await dbConnection.prepare("SELECT fileID, filename, private, ext FROM files WHERE fileID = ?").get(req.params.id);
     if (!file) return res.status(404).send({ errors: ["File not found"], status: false, data: null });
@@ -117,7 +117,7 @@ app.get('/file/view/:id', async (req, res) => {
     res.send(file1);
 });
 
-app.get('/file/download/:id', async (req, res) => {
+app.get('/download/:id', async (req, res) => {
     const file = await dbConnection.prepare("SELECT fileID, filename, private, ext FROM files WHERE fileID = ?").get(req.params.id);
     if (!file) return res.status(404).send({ errors: ["File not found"], status: false, data: null });
 
