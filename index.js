@@ -34,7 +34,7 @@ morgan.token('formattedMeta', (req, res) => {
 app.use(morgan(':formattedMeta :response-time ms'));
 app.use(favicon(path.join(__dirname, 'favicon.ico')));
 app.use(bodyParser.urlencoded({ extended: false }));
-app.use(cors());
+app.use(cors({ credentials: true, origin: true }));
 app.use(formData.parse());
 
 // Authentication
