@@ -113,6 +113,7 @@ app.get('/file/view/:id', async (req, res) => {
 
     const file1 = fs.readFileSync(fileLocation);
     res.contentType(mime.getType(fileLocation));
+    res.setHeader('Content-Disposition', `inline; filename=${file.filename}`);
     res.send(file1);
 });
 
@@ -130,6 +131,7 @@ app.get('/file/download/:id', async (req, res) => {
     }
 
     const fileLocation = path.join(__dirname, 'files', `${file.fileID + file.ext}`);
+    res.setHeader('Content-Disposition', `attachment; filename=${file.filename}`);
     res.download(fileLocation, file.filename);
 });
 
