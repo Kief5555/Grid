@@ -231,6 +231,11 @@ app.get('/api/user/files', authenticateUser, (req, res) => {
     res.status(200).send({ success: true, data: { files }, errors: [] });
 });
 
+app.get('/status', (req, res) => {
+    const totalFiles = dbConnection.prepare("SELECT COUNT(*) FROM files").get();
+    res.status(200).send({ success: true, data: { status: "online", totalFiles }, errors: [] });
+});
+
 // Start server
 const port = process.env.PORT || 3020;
 app.listen(port, () => {
