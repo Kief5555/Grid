@@ -72,7 +72,7 @@ const verifyToken = (token) => {
 
 // Main route
 app.get('/', (req, res) => {
-    res.send("Hello World");
+    res.send("PrintedWaste Grid Service");
 });
 
 // Generate File ID
