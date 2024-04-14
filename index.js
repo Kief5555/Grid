@@ -162,7 +162,7 @@ app.get('/api/file/:id', async (req, res) => {
 
 app.post('/api/file/upload', authenticateUser, multer({ dest: 'files/', limits: { fileSize: 100000000 } }).single('file'), (req, res) => {
     const file = req.files.file;
-    const { self = false, accessKey = false } = req.body;
+    const { self, accessKey } = req.body;
     if (!file) return res.status(400).send({ errors: ["File required"], success: false, data: null });
     const fileID = generateFileID()
     const filename = file.name;
