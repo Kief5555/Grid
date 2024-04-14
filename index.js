@@ -164,6 +164,7 @@ app.post('/api/file/upload', authenticateUser, multer({ dest: 'files/', limits: 
     const file = req.files.file;
     const self = req.headers.private == "true" ? true : false;
     const accessKey = req.headers.accessKey == "true" ? true : false;
+    console.log(req.headers);
     if (!file) return res.status(400).send({ errors: ["File required"], success: false, data: null });
     const fileID = generateFileID()
     const filename = file.name;
