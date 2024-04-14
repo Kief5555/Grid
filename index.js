@@ -243,6 +243,13 @@ app.delete('/api/user/delete/:username', (req, res) => {
 //Get all files that the user has uploaded
 app.get('/api/user/files', authenticateUser, (req, res) => {
     const files = dbConnection.prepare("SELECT * FROM files WHERE owner = ?").all(req.user.username);
+    //Query each file for the size in bytes
+    files.forEach((file) => {
+        const fileLocation = path.join(__dirname, 'files', `${file.fileID + file.ext}`);
+        const stats = fs.statSync(fileLocation);
+        file.size = stats.size;
+        file.type = mime.getType(fileLocation);
+    });
     res.status(200).send({ success: true, data: { files }, errors: [] });
 });
 
