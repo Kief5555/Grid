@@ -177,6 +177,21 @@ app.post('/api/file/upload', authenticateUser, multer({ dest: 'files/', limits: 
     res.status(201).send({ success: true, data: { fileID: fileID }, errors: [] });
 });
 
+app.post('/api/file/delete/:id', authenticateUser, async (req, res) => {
+    const file = await dbConnection.prepare("SELECT * FROM files WHERE fileID = ?").get(req.params.id);
+    if (!file) return res.status(404).send({ errors: ["File not found"], success: false, data: null });
+
+    if (file.owner !== req.user.username) return res.status(401).send({ errors: ["Unauthorized"], success: false, data: null });
+
+    const result = dbConnection.prepare("DELETE FROM files WHERE fileID = ?").run(req.params.id);
+
+    if (result.changes === 0) return res.status(500).send({ errors: ["Internal Server Error"], success: false, data: null });
+
+    fs.unlinkSync(path.join(__dirname, 'files', `${file.fileID + file.ext}`));
+
+    res.status(200).send({ success: true, data: null, errors: [] });
+});
+
 app.post('/api/user/register', async (req, res) => {
     const { username = "", password = "", registerKey = "" } = req.body;
     if (registerKey !== process.env.RKEY) {
