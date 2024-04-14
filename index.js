@@ -97,7 +97,7 @@ const generateAccessKey = () => {
 //File routes
 app.get('/view/:id', async (req, res) => {
     //Only files that can be rendered in the browser can be viewed, otherwise, download the file
-    const file = await dbConnection.prepare("SELECT fileID, filename, private, ext FROM files WHERE fileID = ?").get(req.params.id);
+    const file = await dbConnection.prepare("SELECT fileID, filename, private, accessKey, ext FROM files WHERE fileID = ?").get(req.params.id);
     if (!file) return res.status(404).send({ errors: ["File not found"], status: false, data: null });
 
     if (file.private == true) {
@@ -118,7 +118,7 @@ app.get('/view/:id', async (req, res) => {
 });
 
 app.get('/download/:id', async (req, res) => {
-    const file = await dbConnection.prepare("SELECT fileID, filename, private, ext FROM files WHERE fileID = ?").get(req.params.id);
+    const file = await dbConnection.prepare("SELECT fileID, filename, private, accessKey, ext FROM files WHERE fileID = ?").get(req.params.id);
     if (!file) return res.status(404).send({ errors: ["File not found"], status: false, data: null });
 
     if (file.private == true) {
@@ -164,7 +164,6 @@ app.post('/api/file/upload', authenticateUser, multer({ dest: 'files/', limits: 
     const file = req.files.file;
     const self = req.headers.private == "true" ? true : false;
     const accessKey = req.headers.accessKey == "true" ? true : false;
-    console.log(req.headers);
     if (!file) return res.status(400).send({ errors: ["File required"], success: false, data: null });
     const fileID = generateFileID()
     const filename = file.name;
