@@ -164,7 +164,7 @@ app.post('/api/file/upload', authenticateUser, multer({ dest: 'files/', limits: 
     const file = req.files.file;
     const self = req.body.private == "true" ? true : false;
     const accessKey = req.body.accessKey == "true" ? true : false;
-    console.log(req.body)
+    console.log(req.body, self, accessKey)
     if (!file) return res.status(400).send({ errors: ["File required"], success: false, data: null });
     const fileID = generateFileID()
     const filename = file.name;
@@ -177,7 +177,7 @@ app.post('/api/file/upload', authenticateUser, multer({ dest: 'files/', limits: 
 
     fs.renameSync(file.path, path.join(__dirname, 'files', `${fileID + path.extname(file.name)}`));
 
-    res.status(201).send({ success: true, data: { fileID: fileID, privateKey: key}, errors: [] });
+    res.status(201).send({ success: true, data: { fileID: fileID, privateKey: key }, errors: [] });
 });
 
 app.post('/api/file/delete/:id', authenticateUser, async (req, res) => {
