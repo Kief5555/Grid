@@ -167,14 +167,15 @@ app.post('/api/file/upload', authenticateUser, multer({ dest: 'files/', limits: 
     const fileID = generateFileID()
     const filename = file.name;
     const owner = req.user.username;
+    const key = accessKey ? generateAccessKey() : null;
 
     const insertFile = dbConnection.prepare("INSERT INTO files (filename, owner, fileID, private, accessKey, ext) VALUES (?, ?, ?, ?, ?, ?)");
-    const result = insertFile.run(filename, owner, fileID, `${self}`, accessKey ? generateAccessKey() : null, `${path.extname(file.name)}`);
+    const result = insertFile.run(filename, owner, fileID, `${self}`, accessKey ? key : null, `${path.extname(file.name)}`);
     if (result.changes === 0) return res.status(500).send({ errors: ["Internal Server Error"], success: false, data: null });
 
     fs.renameSync(file.path, path.join(__dirname, 'files', `${fileID + path.extname(file.name)}`));
 
-    res.status(201).send({ success: true, data: { fileID: fileID }, errors: [] });
+    res.status(201).send({ success: true, data: { fileID: fileID, privateKey: key}, errors: [] });
 });
 
 app.post('/api/file/delete/:id', authenticateUser, async (req, res) => {
