@@ -139,7 +139,7 @@ app.get('/download/:id', async (req, res) => {
 
 // API Routes
 app.get('/api/file/:id', async (req, res) => {
-    const file = await dbConnection.prepare("SELECT fileID, filename, private, ext FROM files WHERE fileID = ?").get(req.params.id);
+    const file = await dbConnection.prepare("SELECT fileID, filename, private, accessKey, ext FROM files WHERE fileID = ?").get(req.params.id);
     if (!file) return res.status(404).send({ errors: ["File not found"], status: false, data: null });
 
     if (file.private == true) {
