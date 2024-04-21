@@ -139,7 +139,7 @@ app.get('/download/:id', async (req, res) => {
 
 // API Routes
 app.get('/api/file/:id', async (req, res) => {
-    const file = await dbConnection.prepare("SELECT fileID, filename, private, accessKey, ext FROM files WHERE fileID = ?").get(req.params.id);
+    const file = await dbConnection.prepare("SELECT fileID, filename, private, accessKey, ext, owner FROM files WHERE fileID = ?").get(req.params.id);
     if (!file) return res.status(404).send({ errors: ["File not found"], status: false, data: null });
 
     if (file.private == true) {
@@ -160,7 +160,7 @@ app.get('/api/file/:id', async (req, res) => {
     });
 });
 
-app.post('/api/file/upload', authenticateUser, multer({ dest: 'files/', limits: { fileSize: 100000000 } }).single('file'), (req, res) => {
+app.post('/api/file/upload', authenticateUser, multer({ dest: 'files/', limits: { fileSize: 150000000 } }).single('file'), (req, res) => {
     const file = req.files.file;
     const self = req.headers.private == "true" ? true : false;
     const accessKey = req.headers.accesskey == "true" ? true : false;
