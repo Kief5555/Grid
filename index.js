@@ -255,6 +255,30 @@ app.get('/api/user/files', authenticateUser, (req, res) => {
     res.status(200).send({ success: true, data: { files }, errors: [] });
 });
 
+//Get share file, render using ejs template so we can have title, description, etc. Then when someone visits it instantly redirect to the main site
+app.get('/share/:id', async (req, res) => {
+    const file = await dbConnection.prepare("SELECT fileID, filename, private, accessKey, ext, owner FROM files WHERE fileID = ?").get(req.params.id);
+    if (!file) return res.status(404).send({ errors: ["File not found"], status: false, data: null });
+
+    if (file.private == true) {
+        const tokenRes = verifyToken(req.headers.authorization);
+        if (!tokenRes) return res.status(401)
+    }
+
+    if (file.accessKey && req.query.key !== file.accessKey) {
+        return res.status(401)
+    }
+
+    const fileLocation = path.join(__dirname, 'files', `${file.fileID + file.ext}`);
+    fs.stat(fileLocation, (err, stats) => {
+        if (err) return res.status(500).send({ errors: ["Internal server err"], status: false, data: null });
+        file.size = stats.size;
+        file.type = mime.getType(fileLocation);
+        file.redirectUrl = `https://printedwaste.com/grid/file/${file.fileID}${file.accessKey ? `?key=${file.accessKey}` : ''}`;
+        res.render('share.ejs', { file });
+    });
+});
+
 app.get('/status', (req, res) => {
     const totalFiles = dbConnection.prepare("SELECT COUNT(*) FROM files").get();
     res.status(200).send({ success: true, data: { status: "online", totalFiles }, errors: [] });

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>
+        <%= file.title %>
+    </title>
+    <meta name="description" content="<%= file.description %>">
+    <% if (file.image) { %>
+        <meta property="og:image" content="<%= file.image %>">
+        <% } %>
+            <style>
+                body {
+                    background-color: #7289DA;
+                    /* Discord blurple color */
+                }
+            </style>
+            <script>
+                window.location.replace("<%= file.redirectUrl %>");
+            </script>
+</head>
+
+<body>
+    <!-- This content will not be shown as there's an instant redirect -->
+</body>
+
+</html>
