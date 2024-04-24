@@ -274,7 +274,7 @@ app.get('/share/:id', async (req, res) => {
         if (err) return res.status(500).send({ errors: ["Internal server err"], status: false, data: null });
         file.size = stats.size;
         file.type = mime.getType(fileLocation);
-        file.redirectUrl = `https://printedwaste.com/grid/file/${file.fileID}${file.accessKey ? `?key=${file.accessKey}` : ''}`;
+        file.redirectUrl = `https://printedwaste.com/grid/view/?id=${file.fileID}${file.accessKey ? `?key=${file.accessKey}` : ''}`;
         res.render('share.ejs', { file });
     });
 });
