@@ -8,9 +8,13 @@
         <%= file.filename %>
     </title>
     <meta name="description" content="View this file shared to you on PrintedWaste grid">
-    <meta name="theme-color" content="#00aa00">
+    <meta name="theme-color" content="#5539cc">
     <meta property="og:title" content="<%= file.filename %>">
     <meta property="og:description" content="View this file shared to you on PrintedWaste grid">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="PrintedWaste">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:locale:alternate" content="en_GB">
     <meta property="og:url" content="<%= file.redirectUrl %>">
     <% if (file.image) { %>
         <meta property="og:image" content="<%= file.image %>">
