@@ -5,11 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>
-        <%= file.title %>
+        <%= file.filename %>
     </title>
     <meta name="description" content="View this <@= file.ext&> on PrintedWaste grid. ID: <%= file.id %>">
     <meta name="theme-color" content="#00aa00">
-    <meta property="og:title" content="<%= file.title %>">
+    <meta property="og:title" content="<%= file.filename %>">
     <meta property="og:description" content="View this <@= file.ext&> on PrintedWaste grid. ID: <%= file.id %>">
     <meta property="og:url" content="<%= file.redirectUrl %>">
     <% if (file.image) { %>
@@ -22,9 +22,7 @@
                 }
             </style>
             <script>
-                setTimeout(() => {
-                    window.location.replace("<%= file.redirectUrl %>");
-                }, 100);
+                window.location.replace("<%= file.redirectUrl %>");
             </script>
 </head>
 
