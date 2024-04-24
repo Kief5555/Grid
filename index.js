@@ -275,6 +275,7 @@ app.get('/share/:id', async (req, res) => {
         file.size = stats.size;
         file.type = mime.getType(fileLocation);
         file.redirectUrl = `https://printedwaste.com/grid/view/?id=${file.fileID}${file.accessKey ? `?key=${file.accessKey}` : ''}`;
+        file.image = file.type.startsWith('image');
         res.render('share.ejs', { file });
     });
 });
