@@ -96,8 +96,10 @@ const generateAccessKey = () => {
 
 //File routes
 app.get('/view/:id', async (req, res) => {
+    //In the ID, replace any file extension with an empty string (if any)
+    const id = req.params.id.replace(/\.[^/.]+$/, "");
     //Only files that can be rendered in the browser can be viewed, otherwise, download the file
-    const file = await dbConnection.prepare("SELECT fileID, filename, private, accessKey, ext FROM files WHERE fileID = ?").get(req.params.id);
+    const file = await dbConnection.prepare("SELECT fileID, filename, private, accessKey, ext FROM files WHERE fileID = ?").get(id);
     if (!file) return res.status(404).send({ errors: ["File not found"], status: false, data: null });
 
     if (file.private == true) {
