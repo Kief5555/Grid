@@ -46,7 +46,7 @@ const authenticateUser = (req, res, next) => {
     }
 
     let processedToken = '';
-    if (token.startsWith('Bearer ')) {
+    if (token?.startsWith('Bearer ')) {
         processedToken = token.slice(7, token.length);
     } else {
         processedToken = token;
