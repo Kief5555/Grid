@@ -116,6 +116,8 @@ app.get('/view/:id', async (req, res) => {
     const file1 = fs.readFileSync(fileLocation);
     res.contentType(mime.getType(fileLocation));
     res.setHeader('Content-Disposition', `inline; filename=${file.filename}`);
+    //cache header for 3 days
+    res.setHeader('Cache-Control', 'public, max-age=259200');
     res.send(file1);
 });
 
@@ -134,6 +136,8 @@ app.get('/download/:id', async (req, res) => {
 
     const fileLocation = path.join(__dirname, 'files', `${file.fileID + file.ext}`);
     res.setHeader('Content-Disposition', `attachment; filename=${file.filename}`);
+    //cache header for 3 days
+    res.setHeader('Cache-Control', 'public, max-age=259200');
     res.download(fileLocation, file.filename);
 });
 
