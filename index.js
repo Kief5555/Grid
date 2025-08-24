@@ -405,7 +405,7 @@ app.get('/download/:id', async (req, res) => {
 // API Routes
 app.get('/api/file/:id', async (req, res) => {
     try {
-        const file = await dbGet("SELECT fileID, filename, private, accessKey, ext, owner, size, mime_type FROM files WHERE fileID = ?", [req.params.id]);
+        const file = await db.getFile(req.params.id);
 
         if (!file) {
             return res.status(404).json({ errors: ["File not found"], success: false, data: null });
