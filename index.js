@@ -259,7 +259,7 @@ app.set('views', path.join(__dirname, 'views'));
 
 app.use(cors({
     credentials: true,
-    origin: '*',
+    origin: true,
     methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Chunk-Index', 'X-Total-Chunks', 'X-Session-ID', 'X-File-Size', 'X-File-Name', 'X-Private', 'X-Access-Key']
 }));
