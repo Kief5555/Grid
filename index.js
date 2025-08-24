@@ -228,7 +228,10 @@ const uploadLimiter = rateLimit({
 const speedLimiter = slowDown({
     windowMs: 15 * 60 * 1000, // 15 minutes
     delayAfter: 50, // allow 50 requests per 15 minutes, then...
-    delayMs: 500 // begin adding 500ms of delay per request above 50
+    delayMs: (used, req) => {
+        const delayAfter = req.slowDown.limit;
+        return (used - delayAfter) * 500;
+    }
 });
 
 // Middleware
@@ -899,7 +902,15 @@ app.get('/status', async (req, res) => {
 setInterval(async () => {
     try {
         const cleanedCount = await db.cleanupExpiredSessions();
-        console.log(`Cleaned up ${cleanedCount} expired upload sessions`);
+        const timestamp = new Date().toLocaleTimeString('en-US', {
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        if (cleanedCount > 0) {
+            console.log(`[${timestamp}] Cleaned up ${cleanedCount} expired upload sessions`);
+        }
     } catch (error) {
         console.error('Cleanup error:', error);
     }
@@ -921,6 +932,12 @@ const port = process.env.PORT || 3020;
 
 // Start server
 app.listen(port, () => {
-    console.log(`[${new Date().toLocaleString()}] Server Started on port ${port}`);
-    console.log(`[${new Date().toLocaleString()}] Features: Chunked uploads, Cloudflare compatible, Rate limited`);
+    const timestamp = new Date().toLocaleTimeString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+    console.log(`[${timestamp}] Server Started on port ${port}`);
+    console.log(`[${timestamp}] Features: Chunked uploads, Cloudflare compatible, Rate limited`);
 });

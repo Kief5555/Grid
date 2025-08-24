@@ -10,7 +10,7 @@
     "test": "node --test",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "setup": "cp env.example .env && echo 'Please edit .env file with your configuration'"
+    "setup": "cp env.example .env"
   },
   "keywords": [
     "node",

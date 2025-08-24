@@ -1,18 +1,18 @@
-# PrintedWaste Grid Service
+# Grid Service
 
-A high-performance Node.js file hosting service with chunked uploads, Cloudflare compatibility, and advanced security features.
+A high-performance Node.js file hosting service with chunked uploads and Cloudflare compatibility.
 
 ## Features
 
-- **Chunked Uploads**: Automatic chunking for files over 100MB with progress tracking
-- **Cloudflare Compatible**: Optimized headers and configuration for Cloudflare
-- **Rate Limiting**: Built-in rate limiting and DDoS protection
-- **Security**: Helmet.js security headers, input validation, and authentication
-- **Performance**: Compression, caching, and optimized file handling
-- **Database**: Simple JSON-based storage for easy deployment
-- **File Types**: Support for images, videos, documents, and archives
+- Chunked uploads for files over 100MB
+- Cloudflare compatible headers and configuration
+- Rate limiting and DDoS protection
+- Security headers and input validation
+- Compression and caching
+- Simple JSON-based storage
+- Support for images, videos, documents, and archives
 
-## Quick Start
+## Setup
 
 ### Prerequisites
 
@@ -40,7 +40,7 @@ npm install
 cp env.example .env
 ```
 
-4. Configure environment variables:
+4. Configure environment variables in `.env`:
 
 ```env
 JWT=your-secret-jwt-key
@@ -61,27 +61,15 @@ For development:
 npm run dev
 ```
 
-### Production Deployment with PM2
+### Production Deployment
 
-1. Install PM2 globally:
+Install PM2 and start the service:
 
 ```bash
 npm install -g pm2
-```
-
-2. Start the service:
-
-```bash
 pm2 start ecosystem.config.js
 pm2 save
 pm2 startup
-```
-
-3. Monitor the service:
-
-```bash
-pm2 monit
-pm2 logs
 ```
 
 ## API Documentation
@@ -125,8 +113,8 @@ const initResponse = await fetch('/api/file/upload/init', {
     },
     body: JSON.stringify({
         filename: 'large-file.zip',
-        size: 150000000, // 150MB
-        chunkSize: 5242880 // 5MB chunks (optional)
+        size: 150000000,
+        chunkSize: 5242880
     })
 });
 
@@ -155,99 +143,19 @@ for (let i = 0; i < totalChunks; i++) {
 }
 ```
 
-### Using the Client Library
-
-```html
-<script src="/public/upload-client.js"></script>
-<script>
-const uploadClient = new GridUploadClient('https://your-domain.com');
-
-// Upload with progress tracking
-uploadClient.uploadFile(fileInput.files[0], {
-    private: false,
-    accessKey: true,
-    onProgress: (percentage) => {
-        console.log(`Upload progress: ${percentage}%`);
-        progressBar.value = percentage;
-    },
-    onChunkProgress: (chunkIndex, totalChunks, chunkSize) => {
-        console.log(`Chunk ${chunkIndex + 1}/${totalChunks} uploaded (${GridUploadUtils.formatFileSize(chunkSize)})`);
-    }
-}).then(result => {
-    console.log('Upload successful:', result);
-}).catch(error => {
-    console.error('Upload failed:', error);
-});
-</script>
-```
-
 ### File Management
 
-#### Get File Info
-
-```javascript
-GET /api/file/:id
-```
-
-#### Download File
-
-```javascript
-GET /download/:id?key=access-key
-```
-
-#### View File
-
-```javascript
-GET /view/:id?key=access-key
-```
-
-#### Delete File
-
-```javascript
-DELETE /api/file/:id
-Authorization: Bearer <token>
-```
+- `GET /api/file/:id` - Get file info
+- `GET /download/:id?key=access-key` - Download file
+- `GET /view/:id?key=access-key` - View file
+- `DELETE /api/file/:id` - Delete file
 
 ### User Management
 
-#### Register User
-
-```javascript
-POST /api/user/register
-Content-Type: application/json
-
-{
-    "username": "john_doe",
-    "password": "secure_password",
-    "registerKey": "your-registration-key"
-}
-```
-
-#### Login
-
-```javascript
-POST /api/user/login
-Content-Type: application/json
-
-{
-    "username": "john_doe",
-    "password": "secure_password"
-}
-```
-
-#### Get User Files
-
-```javascript
-GET /api/user/files
-Authorization: Bearer <token>
-```
-
-#### Delete User
-
-```javascript
-DELETE /api/user/:username
-Authorization: Bearer <token>
-```
+- `POST /api/user/register` - Register user
+- `POST /api/user/login` - Login
+- `GET /api/user/files` - Get user files
+- `DELETE /api/user/:username` - Delete user
 
 ## Configuration
 
@@ -262,26 +170,25 @@ Authorization: Bearer <token>
 
 ### Rate Limiting
 
-- **General requests**: 100 requests per 15 minutes per IP
-- **Uploads**: 10 uploads per hour per IP
-- **Speed limiting**: 500ms delay after 50 requests per 15 minutes
+- General requests: 100 requests per 15 minutes per IP
+- Uploads: 10 uploads per hour per IP
+- Speed limiting: 500ms delay after 50 requests per 15 minutes
 
 ### File Limits
 
-- **Single upload**: 100MB maximum
-- **Chunked upload**: 1GB maximum
-- **Chunk size**: 1MB to 10MB (default: 5MB)
-- **Concurrent chunks**: 3 (configurable)
+- Single upload: 100MB maximum
+- Chunked upload: 1GB maximum
+- Chunk size: 1MB to 10MB (default: 5MB)
+- Concurrent chunks: 3
 
 ## Cloudflare Configuration
 
-### Recommended Cloudflare Settings
+### Recommended Settings
 
-1. **SSL/TLS**: Full (strict)
-2. **Security Level**: Medium
-3. **Rate Limiting**: Enable
-4. **WAF**: Enable
-5. **Page Rules**: Add rules for caching static files
+1. SSL/TLS: Full (strict)
+2. Security Level: Medium
+3. Rate Limiting: Enable
+4. WAF: Enable
 
 ### Page Rules
 
@@ -293,93 +200,18 @@ Settings:
 - Browser Cache TTL: 1 hour
 ```
 
-### Worker Script (Optional)
+## Data Storage
 
-```javascript
-addEventListener('fetch', event => {
-  event.respondWith(handleRequest(event.request))
-})
+The service uses JSON-based storage for easy deployment:
 
-async function handleRequest(request) {
-  // Add custom headers for chunked uploads
-  const response = await fetch(request)
-  const newResponse = new Response(response.body, response)
-  
-  newResponse.headers.set('X-Content-Type-Options', 'nosniff')
-  newResponse.headers.set('X-Frame-Options', 'DENY')
-  
-  return newResponse
-}
+```
+data/
+├── users.json      # User accounts and authentication
+├── files.json      # File metadata and access control
+└── sessions.json   # Active upload sessions
 ```
 
-## Security Features
-
-- **Helmet.js**: Security headers
-- **Rate limiting**: DDoS protection
-- **Input validation**: Express-validator
-- **CORS**: Configurable origins
-- **File type validation**: Whitelist approach
-- **Authentication**: JWT tokens
-- **Access keys**: Optional per-file access control
-
-## Performance Optimizations
-
-- **Compression**: Gzip compression for responses
-- **Caching**: ETags and Cache-Control headers
-- **Concurrent uploads**: Multiple chunks simultaneously
-- **Database indexing**: Optimized queries
-- **File streaming**: Efficient file handling
-- **Memory management**: Proper cleanup of temporary files
-
-## Database Schema
-
-### Users Table
-
-```sql
-CREATE TABLE users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-### Files Table
-
-```sql
-CREATE TABLE files (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    filename TEXT NOT NULL,
-    owner TEXT NOT NULL,
-    fileID TEXT UNIQUE NOT NULL,
-    private BOOLEAN DEFAULT FALSE,
-    accessKey TEXT,
-    ext TEXT,
-    size INTEGER,
-    mime_type TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (owner) REFERENCES users(username)
-);
-```
-
-### Upload Sessions Table
-
-```sql
-CREATE TABLE upload_sessions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id TEXT UNIQUE NOT NULL,
-    filename TEXT NOT NULL,
-    owner TEXT NOT NULL,
-    total_chunks INTEGER NOT NULL,
-    chunk_size INTEGER NOT NULL,
-    total_size INTEGER NOT NULL,
-    mime_type TEXT,
-    ext TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    expires_at DATETIME NOT NULL,
-    FOREIGN KEY (owner) REFERENCES users(username)
-);
-```
+All data files are automatically created on first run.
 
 ## Error Handling
 
@@ -393,24 +225,7 @@ All API responses follow a consistent format:
 }
 ```
 
-Common HTTP status codes:
-
-- `200`: Success
-- `201`: Created (upload successful)
-- `400`: Bad Request (validation errors)
-- `401`: Unauthorized (authentication required)
-- `404`: Not Found
-- `429`: Too Many Requests (rate limited)
-- `500`: Internal Server Error
-
-## Monitoring and Logging
-
-The service includes comprehensive logging:
-
-- Request logging with Morgan
-- Error tracking
-- Upload session cleanup
-- Performance metrics
+## Monitoring
 
 ### Status Endpoint
 
@@ -447,19 +262,19 @@ Response:
 Grid/
 ├── index.js              # Main server file
 ├── package.json          # Dependencies and scripts
+├── ecosystem.config.js   # PM2 configuration
+├── api-docs.yaml        # OpenAPI documentation
+├── env.example          # Environment template
 ├── public/
-│   └── upload-client.js  # Client-side upload library
+│   └── upload-client.js # Client-side upload library
 ├── views/
-│   └── share.ejs         # Share page template
-├── files/                # Uploaded files (created automatically)
-├── temp/                 # Temporary chunk storage (created automatically)
-└── main.db              # SQLite database (created automatically)
+│   └── share.ejs        # Share page template
+├── files/               # Uploaded files (auto-created)
+├── temp/                # Temporary chunks (auto-created)
+├── data/                # JSON database files (auto-created)
+└── logs/                # PM2 logs (auto-created)
 ```
 
 ## License
 
 ISC License - see LICENSE file for details.
-
-## Support
-
-For issues and questions, please create an issue in the repository or contact the maintainer.
