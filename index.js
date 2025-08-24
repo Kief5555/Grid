@@ -529,8 +529,6 @@ app.post('/api/file/upload/chunk/:sessionID', authenticateUser, multer({
         const chunkPath = path.join(sessionDir, `chunk_${chunkIndex}`);
         fs.renameSync(req.file.path, chunkPath);
 
-        console.log(`[DEBUG] Chunk ${chunkIndex} uploaded: ${req.file.size} bytes`);
-
         // Check if all chunks are uploaded
         const uploadedChunks = fs.readdirSync(sessionDir).length;
 
@@ -558,16 +556,12 @@ app.post('/api/file/upload/chunk/:sessionID', authenticateUser, multer({
 
             // Wait for file to be fully written
             await new Promise((resolve, reject) => {
-                writeStream.on('finish', () => {
-                    console.log(`[DEBUG] File written: ${totalBytesWritten} bytes`);
-                    resolve();
-                });
+                writeStream.on('finish', resolve);
                 writeStream.on('error', reject);
             });
 
             // Verify file size
             const finalStats = fs.statSync(finalFilePath);
-            console.log(`[DEBUG] Expected size: ${session.total_size}, Actual size: ${finalStats.size}`);
             if (finalStats.size !== session.total_size) {
                 fs.unlinkSync(finalFilePath);
                 return res.status(400).json({
@@ -581,6 +575,10 @@ app.post('/api/file/upload/chunk/:sessionID', authenticateUser, multer({
             const fileID = generateFileID();
             const accessKey = req.headers['x-access-key'] === 'true' ? generateAccessKey() : null;
             const isPrivate = req.headers['x-private'] === 'true';
+
+            // Rename file to use the new fileID
+            const newFilePath = path.join(__dirname, 'files', `${fileID}${session.ext}`);
+            fs.renameSync(finalFilePath, newFilePath);
 
             await db.createFile({
                 filename: session.filename,
