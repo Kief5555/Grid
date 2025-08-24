@@ -190,6 +190,8 @@ for (let i = 0; i < totalChunks; i++) {
 3. Rate Limiting: Enable
 4. WAF: Enable
 
+The service is configured to trust the first proxy (Cloudflare) for proper rate limiting and IP detection.
+
 ### Page Rules
 
 ```

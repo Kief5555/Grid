@@ -34,6 +34,9 @@ for (const envVar of requiredEnvVars) {
 
 const app = express();
 
+// Trust proxy for rate limiting behind Cloudflare/reverse proxy
+app.set('trust proxy', 1);
+
 // Simple JSON-based database
 class SimpleDB {
     constructor() {
@@ -268,11 +271,7 @@ app.use((req, res, next) => {
     res.setHeader('X-XSS-Protection', '1; mode=block');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
 
-    // Cloudflare specific headers
-    if (req.headers['cf-connecting-ip']) {
-        req.ip = req.headers['cf-connecting-ip'];
-    }
-
+    // Cloudflare specific headers - now handled by trust proxy
     next();
 });
 
