@@ -261,7 +261,7 @@ app.use(cors({
     credentials: true,
     origin: true,
     methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Chunk-Index', 'X-Total-Chunks', 'X-Session-ID', 'X-File-Size', 'X-File-Name', 'X-Private', 'X-Access-Key']
+    // allowedHeaders: ['Content-Type', 'Authorization', 'X-Chunk-Index', 'X-Total-Chunks', 'X-Session-ID', 'X-File-Size', 'X-File-Name', 'X-Private', 'X-Access-Key']
 }));
 
 // Cloudflare compatibility headers
