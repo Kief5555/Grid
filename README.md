@@ -46,7 +46,6 @@ cp env.example .env
 JWT=your-secret-jwt-key
 RKEY=your-registration-key
 PORT=3020
-ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
 ```
 
 5. Start the server:
@@ -166,7 +165,6 @@ for (let i = 0; i < totalChunks; i++) {
 | `JWT` | JWT secret key for authentication | Required |
 | `RKEY` | Registration key for new users | Required |
 | `PORT` | Server port | 3020 |
-| `ALLOWED_ORIGINS` | Comma-separated list of allowed CORS origins | * |
 
 ### Rate Limiting
 
