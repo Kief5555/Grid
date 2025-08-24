@@ -856,7 +856,6 @@ app.get('/health', (req, res) => {
         status: "healthy",
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
-        version: "2.0.0"
     });
 });
 
@@ -936,8 +935,10 @@ app.listen(port, () => {
         hour12: false,
         hour: '2-digit',
         minute: '2-digit',
-        second: '2-digit'
+        second: '2-digit',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
     });
     console.log(`[${timestamp}] Server Started on port ${port}`);
-    console.log(`[${timestamp}] Features: Chunked uploads, Cloudflare compatible, Rate limited`);
 });
