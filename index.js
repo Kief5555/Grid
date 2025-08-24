@@ -213,34 +213,8 @@ app.use(helmet({
     crossOriginEmbedderPolicy: false, // Allow file downloads
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
-    message: { errors: ["Too many requests"], success: false, data: null },
-    standardHeaders: true,
-    legacyHeaders: false,
-});
-
-const uploadLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000, // 1 hour
-    max: 10, // limit each IP to 10 uploads per hour
-    message: { errors: ["Upload limit exceeded"], success: false, data: null },
-});
-
-const speedLimiter = slowDown({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    delayAfter: 50, // allow 50 requests per 15 minutes, then...
-    delayMs: (used, req) => {
-        const delayAfter = req.slowDown.limit;
-        return (used - delayAfter) * 500;
-    }
-});
-
 // Middleware
 app.use(compression());
-// app.use(speedLimiter);
-// app.use(limiter);
 app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"'));
 app.use(favicon(path.join(__dirname, 'favicon.ico')));
 app.use(bodyParser.json({ limit: '10mb' }));
@@ -516,7 +490,7 @@ app.post('/api/file/upload/init', authenticateUser, [
 });
 
 // Chunked upload endpoint
-app.post('/api/file/upload/chunk/:sessionID', uploadLimiter, authenticateUser, multer({
+app.post('/api/file/upload/chunk/:sessionID', authenticateUser, multer({
     dest: tempDir,
     limits: { fileSize: 10 * 1024 * 1024 } // 10MB max per chunk
 }).single('chunk'), async (req, res) => {
@@ -628,7 +602,7 @@ app.post('/api/file/upload/chunk/:sessionID', uploadLimiter, authenticateUser, m
 });
 
 // Legacy single file upload (for files under 100MB)
-app.post('/api/file/upload', uploadLimiter, authenticateUser, multer({
+app.post('/api/file/upload', authenticateUser, multer({
     dest: 'files/',
     limits: { fileSize: 100 * 1024 * 1024 } // 100MB limit for single upload
 }).single('file'), async (req, res) => {
