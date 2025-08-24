@@ -296,6 +296,11 @@ const generateSessionID = () => {
 };
 
 const isValidFileType = (mimeType) => {
+    // Handle null/undefined mimeType
+    if (!mimeType || typeof mimeType !== 'string') {
+        return false;
+    }
+
     const allowedTypes = [
         'image/', 'video/', 'audio/', 'text/', 'application/pdf', 'application/x-iso9660-image', 'application/octet-stream',
         'application/zip', 'application/x-zip-compressed',
@@ -524,6 +529,8 @@ app.post('/api/file/upload/chunk/:sessionID', authenticateUser, multer({
         const chunkPath = path.join(sessionDir, `chunk_${chunkIndex}`);
         fs.renameSync(req.file.path, chunkPath);
 
+        console.log(`[DEBUG] Chunk ${chunkIndex} uploaded: ${req.file.size} bytes`);
+
         // Check if all chunks are uploaded
         const uploadedChunks = fs.readdirSync(sessionDir).length;
 
@@ -531,11 +538,19 @@ app.post('/api/file/upload/chunk/:sessionID', authenticateUser, multer({
             // Combine all chunks
             const finalFilePath = path.join(__dirname, 'files', `${sessionID}${session.ext}`);
             const writeStream = fs.createWriteStream(finalFilePath);
+            let totalBytesWritten = 0;
 
             for (let i = 0; i < session.total_chunks; i++) {
                 const chunkPath = path.join(sessionDir, `chunk_${i}`);
+                if (!fs.existsSync(chunkPath)) {
+                    writeStream.destroy();
+                    fs.unlinkSync(finalFilePath);
+                    return res.status(400).json({ errors: [`Missing chunk ${i}`], success: false, data: null });
+                }
+
                 const chunkBuffer = fs.readFileSync(chunkPath);
                 writeStream.write(chunkBuffer);
+                totalBytesWritten += chunkBuffer.length;
                 fs.unlinkSync(chunkPath); // Delete chunk after writing
             }
 
@@ -543,15 +558,23 @@ app.post('/api/file/upload/chunk/:sessionID', authenticateUser, multer({
 
             // Wait for file to be fully written
             await new Promise((resolve, reject) => {
-                writeStream.on('finish', resolve);
+                writeStream.on('finish', () => {
+                    console.log(`[DEBUG] File written: ${totalBytesWritten} bytes`);
+                    resolve();
+                });
                 writeStream.on('error', reject);
             });
 
             // Verify file size
             const finalStats = fs.statSync(finalFilePath);
+            console.log(`[DEBUG] Expected size: ${session.total_size}, Actual size: ${finalStats.size}`);
             if (finalStats.size !== session.total_size) {
                 fs.unlinkSync(finalFilePath);
-                return res.status(400).json({ errors: ["File size mismatch"], success: false, data: null });
+                return res.status(400).json({
+                    errors: [`File size mismatch. Expected: ${session.total_size}, Got: ${finalStats.size}`],
+                    success: false,
+                    data: null
+                });
             }
 
             // Create file record
