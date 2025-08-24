@@ -1,32 +1,50 @@
 {
   "name": "file-grid",
   "version": "1.0.0",
-  "description": "Node.js File Grid",
+  "description": "High-performance Node.js File Grid with chunked uploads",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "test": "node --test",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "setup": "cp env.example .env && echo 'Please edit .env file with your configuration'"
   },
   "keywords": [
     "node",
-    "api"
+    "api",
+    "file-upload",
+    "chunked-upload",
+    "cloudflare"
   ],
   "author": "Kiefer Lin",
   "license": "ISC",
-  "type": "module",
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "better-sqlite3": "^9.4.1",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "ejs": "^3.1.10",
     "express": "^4.18.2",
-    "express-form-data": "^2.0.23",
+    "express-rate-limit": "^7.1.5",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "mime": "^4.0.1",
     "morgan": "^1.10.0",
-    "multer": "^1.4.3",
-    "serve-favicon": "^2.5.0"
+    "multer": "^1.4.5-lts.1",
+    "serve-favicon": "^2.5.0",
+    "compression": "^1.7.4",
+    "express-slow-down": "^2.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "eslint": "^8.56.0",
+    "prettier": "^3.1.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

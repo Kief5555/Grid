@@ -1,0 +1,880 @@
+openapi: 3.0.3
+info:
+  title: PrintedWaste Grid Service API
+  description: High-performance file hosting service with chunked uploads and Cloudflare compatibility
+  version: 2.0.0
+  contact:
+    name: Kiefer Lin
+    url: https://printedwaste.com
+  license:
+    name: ISC
+    url: https://opensource.org/licenses/ISC
+
+servers:
+  - url: http://localhost:3020
+    description: Development server
+  - url: https://yourdomain.com
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: User registration and authentication
+  - name: Files
+    description: File upload, download, and management
+  - name: Users
+    description: User management operations
+  - name: System
+    description: System status and health checks
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        errors:
+          type: array
+          items:
+            type: string
+          example: ["Error message"]
+        data:
+          type: null
+          example: null
+
+    Success:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+        errors:
+          type: array
+          items:
+            type: string
+          example: []
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        username:
+          type: string
+          example: "john_doe"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    File:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        filename:
+          type: string
+          example: "document.pdf"
+        owner:
+          type: string
+          example: "john_doe"
+        fileID:
+          type: string
+          example: "a1b2c3d4"
+        private:
+          type: boolean
+          example: false
+        accessKey:
+          type: string
+          nullable: true
+          example: "abc123def456"
+        ext:
+          type: string
+          example: ".pdf"
+        size:
+          type: integer
+          example: 1048576
+        mime_type:
+          type: string
+          example: "application/pdf"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    UploadSession:
+      type: object
+      properties:
+        sessionID:
+          type: string
+          example: "session123"
+        totalChunks:
+          type: integer
+          example: 20
+        chunkSize:
+          type: integer
+          example: 5242880
+        uploadUrl:
+          type: string
+          example: "/api/file/upload/chunk/session123"
+
+    UploadResult:
+      type: object
+      properties:
+        fileID:
+          type: string
+          example: "a1b2c3d4"
+        privateKey:
+          type: string
+          nullable: true
+          example: "abc123def456"
+        size:
+          type: integer
+          example: 104857600
+
+    SystemStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "online"
+        totalFiles:
+          type: integer
+          example: 1234
+        totalUsers:
+          type: integer
+          example: 56
+        totalSize:
+          type: integer
+          example: 1073741824
+        diskUsage:
+          type: integer
+          example: 1073741824
+        activeSessions:
+          type: integer
+          example: 5
+        version:
+          type: string
+          example: "2.0.0"
+        uptime:
+          type: number
+          example: 3600.5
+        memory:
+          type: object
+          properties:
+            rss:
+              type: integer
+            heapTotal:
+              type: integer
+            heapUsed:
+              type: integer
+            external:
+              type: integer
+
+paths:
+  /:
+    get:
+      tags:
+        - System
+      summary: Get service information
+      description: Returns basic information about the service
+      responses:
+        '200':
+          description: Service information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "PrintedWaste Grid Service"
+                  version:
+                    type: string
+                    example: "2.0.0"
+                  features:
+                    type: array
+                    items:
+                      type: string
+                    example: ["chunked-uploads", "cloudflare-compatible", "rate-limited"]
+
+  /health:
+    get:
+      tags:
+        - System
+      summary: Health check
+      description: Returns service health status
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  timestamp:
+                    type: string
+                    format: date-time
+                  uptime:
+                    type: number
+                    example: 3600.5
+                  version:
+                    type: string
+                    example: "2.0.0"
+
+  /status:
+    get:
+      tags:
+        - System
+      summary: Get system status
+      description: Returns detailed system status and statistics
+      responses:
+        '200':
+          description: System status
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SystemStatus'
+
+  /view/{id}:
+    get:
+      tags:
+        - Files
+      summary: View file
+      description: View a file in the browser (inline)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: File ID
+        - name: key
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Access key for private files
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: File content
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /download/{id}:
+    get:
+      tags:
+        - Files
+      summary: Download file
+      description: Download a file as attachment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: File ID
+        - name: key
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Access key for private files
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: File download
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/file/{id}:
+    get:
+      tags:
+        - Files
+      summary: Get file information
+      description: Get metadata for a specific file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: File ID
+        - name: key
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Access key for private files
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: File information
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          file:
+                            $ref: '#/components/schemas/File'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/file/upload/init:
+    post:
+      tags:
+        - Files
+      summary: Initialize chunked upload
+      description: Initialize a chunked upload session for files over 100MB
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - filename
+                - size
+              properties:
+                filename:
+                  type: string
+                  example: "large-file.zip"
+                  description: Original filename
+                size:
+                  type: integer
+                  minimum: 1
+                  maximum: 1073741824
+                  example: 150000000
+                  description: File size in bytes (max 1GB)
+                chunkSize:
+                  type: integer
+                  minimum: 1048576
+                  maximum: 10485760
+                  example: 5242880
+                  description: Chunk size in bytes (1MB to 10MB, default 5MB)
+      responses:
+        '201':
+          description: Upload session created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UploadSession'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/file/upload/chunk/{sessionID}:
+    post:
+      tags:
+        - Files
+      summary: Upload chunk
+      description: Upload a chunk for chunked upload
+      parameters:
+        - name: sessionID
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Upload session ID
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                chunk:
+                  type: string
+                  format: binary
+                  description: File chunk data
+      headers:
+        X-Chunk-Index:
+          description: Chunk index (0-based)
+          required: true
+          schema:
+            type: string
+        X-Total-Chunks:
+          description: Total number of chunks
+          required: true
+          schema:
+            type: string
+        X-Private:
+          description: Make file private
+          required: false
+          schema:
+            type: string
+            enum: ["true", "false"]
+        X-Access-Key:
+          description: Generate access key
+          required: false
+          schema:
+            type: string
+            enum: ["true", "false"]
+      responses:
+        '200':
+          description: Chunk uploaded successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          uploadedChunks:
+                            type: integer
+                            example: 5
+                          totalChunks:
+                            type: integer
+                            example: 20
+                          message:
+                            type: string
+                            example: "Chunk 5/20 uploaded"
+        '201':
+          description: All chunks uploaded, file created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UploadResult'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Upload session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/file/upload:
+    post:
+      tags:
+        - Files
+      summary: Upload single file
+      description: Upload a single file (under 100MB)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: File to upload
+      headers:
+        X-Private:
+          description: Make file private
+          required: false
+          schema:
+            type: string
+            enum: ["true", "false"]
+        X-Access-Key:
+          description: Generate access key
+          required: false
+          schema:
+            type: string
+            enum: ["true", "false"]
+      responses:
+        '201':
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UploadResult'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/file/{id}:
+    delete:
+      tags:
+        - Files
+      summary: Delete file
+      description: Delete a file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: File ID
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: File deleted successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: null
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/user/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register user
+      description: Register a new user account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+                - registerKey
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 50
+                  pattern: '^[a-zA-Z0-9_]+$'
+                  example: "john_doe"
+                  description: Username (alphanumeric and underscore only)
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+                  example: "secure_password"
+                  description: Password (min 8 characters)
+                registerKey:
+                  type: string
+                  example: "your-registration-key"
+                  description: Registration key required for account creation
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            example: 1
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Invalid registration key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/user/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login user
+      description: Authenticate user and get JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: "john_doe"
+                  description: Username
+                password:
+                  type: string
+                  example: "secure_password"
+                  description: Password
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          token:
+                            type: string
+                            example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                            description: JWT token for authentication
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/user/{username}:
+    delete:
+      tags:
+        - Users
+      summary: Delete user
+      description: Delete a user account
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Username to delete
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User deleted successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: null
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/user/files:
+    get:
+      tags:
+        - Users
+      summary: Get user files
+      description: Get all files owned by the authenticated user
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User files
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          files:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/File'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /share/{id}:
+    get:
+      tags:
+        - Files
+      summary: Share file page
+      description: Get share page for a file (renders HTML)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: File ID
+        - name: key
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Access key for private files
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Share page HTML
+          content:
+            text/html:
+              schema:
+                type: string
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+security:
+  - BearerAuth: []
