@@ -340,8 +340,8 @@ const isValidFileType = (mimeType) => {
 app.get('/', (req, res) => {
     res.json({
         message: "PrintedWaste Grid Service",
-        version: "2.0.0",
-        features: ["chunked-uploads", "cloudflare-compatible", "rate-limited"]
+        status: true,
+        errors: []
     });
 });
 
