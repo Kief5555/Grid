@@ -323,11 +323,11 @@ const generateSessionID = () => {
 
 const isValidFileType = (mimeType) => {
     const allowedTypes = [
-        'image/', 'video/', 'audio/', 'text/', 'application/pdf',
+        'image/', 'video/', 'audio/', 'text/', 'application/pdf', 'application/x-iso9660-image', 'application/octet-stream',
         'application/zip', 'application/x-zip-compressed',
         'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     ];
 
     return allowedTypes.some(type => mimeType.startsWith(type));
