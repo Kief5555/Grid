@@ -239,8 +239,8 @@ const speedLimiter = slowDown({
 
 // Middleware
 app.use(compression());
-app.use(speedLimiter);
-app.use(limiter);
+// app.use(speedLimiter);
+// app.use(limiter);
 app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"'));
 app.use(favicon(path.join(__dirname, 'favicon.ico')));
 app.use(bodyParser.json({ limit: '10mb' }));
@@ -461,7 +461,7 @@ app.get('/api/file/:id', async (req, res) => {
 });
 
 // Chunked upload initialization
-app.post('/api/file/upload/init', uploadLimiter, authenticateUser, [
+app.post('/api/file/upload/init', authenticateUser, [
     body('filename').isString().isLength({ min: 1, max: 255 }),
     body('size').isInt({ min: 1, max: 1073741824 }), // Max 1GB
     body('chunkSize').optional().isInt({ min: 1024 * 1024, max: 10 * 1024 * 1024 }), // 1MB to 10MB chunks
