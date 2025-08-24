@@ -296,6 +296,9 @@ const generateSessionID = () => {
 };
 
 const isValidFileType = (mimeType) => {
+    if(!process.env.FILTER_MIME) {
+        return true;
+    }
     // Handle null/undefined mimeType
     if (!mimeType || typeof mimeType !== 'string') {
         return false;
