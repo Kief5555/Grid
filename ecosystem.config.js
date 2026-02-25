@@ -2,8 +2,7 @@ module.exports = {
     apps: [{
         name: 'Grid',
         script: 'index.js',
-        instances: 'max',
-        exec_mode: 'cluster',
+        instances: '1',
         env: {
             NODE_ENV: 'production',
             PORT: 3020
