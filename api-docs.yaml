@@ -253,8 +253,6 @@ paths:
         - System
       summary: Get system status
       description: Returns detailed system status and statistics
-      security:
-        - BearerAuth: []
       responses:
         '200':
           description: System status

@@ -95,9 +95,7 @@ test('finalizes resumable APK uploads and protects private downloads', async () 
     const otherToken = await login('other');
 
     const publicStatus = await request('/status');
-    assert.equal(publicStatus.response.status, 401);
-    const authenticatedStatus = await request('/status', { token: ownerToken });
-    assert.equal(authenticatedStatus.response.status, 200);
+    assert.equal(publicStatus.response.status, 200);
     const permissivePreflight = await request('/status', {
         method: 'OPTIONS',
         headers: {

@@ -1171,7 +1171,7 @@ app.get('/health', (req, res) => {
 });
 
 // Status endpoint
-app.get('/status', authenticateUser, async (req, res) => {
+app.get('/status', async (req, res) => {
     try {
         const stats = await db.getStats();
 
