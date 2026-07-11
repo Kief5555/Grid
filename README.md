@@ -181,7 +181,6 @@ hours it returns the original file result instead of creating a second file.
 | `JWT` | JWT secret key for authentication | Required |
 | `RKEY` | Registration key for new users | Required |
 | `PORT` | Server port | 3020 |
-| `CORS_ORIGINS` | Additional comma-separated browser origins permitted to call the API | PrintedWaste first-party origins and native clients |
 | `DATA_DIR` | JSON metadata directory | `./data` |
 | `FILES_DIR` | Completed file storage directory | `./files` |
 | `TEMP_DIR` | Chunk upload staging directory | `./temp` |
@@ -201,7 +200,7 @@ hours it returns the original file result instead of creating a second file.
 
 ## Security and Android downloads
 
-- The PrintedWaste first-party origins receive CORS preflight responses by default. Set `CORS_ORIGINS` for each additional trusted web client; native Android clients do not need an Origin header.
+- CORS is open to all origins. Credentialed browser requests are disabled; authenticate API requests with bearer tokens.
 - Private files require a token for the file owner. Files protected by an access key require that key as well and are never marked publicly cacheable.
 - APK downloads are served as `application/vnd.android.package-archive` with byte-range support, which lets Android's DownloadManager resume and hand off completed APKs to the package installer.
 - File metadata includes a SHA-256 checksum. Clients can compare it after download before prompting installation.

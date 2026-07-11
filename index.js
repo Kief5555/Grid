@@ -28,18 +28,6 @@ const getPositiveIntegerEnv = (name, fallback) => {
     return Number.isSafeInteger(value) && value > 0 ? value : fallback;
 };
 
-const firstPartyOrigins = [
-    'https://printedwaste.com',
-    'https://www.printedwaste.com'
-];
-const allowedOrigins = new Set([
-    ...firstPartyOrigins,
-    ...(process.env.CORS_ORIGINS || '')
-        .split(',')
-        .map(origin => origin.trim())
-        .filter(Boolean)
-]);
-
 // Validate required environment variables
 const requiredEnvVars = ['JWT', 'RKEY'];
 for (const envVar of requiredEnvVars) {
@@ -283,14 +271,8 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
 const corsOptions = {
-    // Native clients do not send Origin. Browser clients must be explicitly
-    // allow-listed instead of reflecting every Origin with credentials. The
-    // PrintedWaste web app is always a trusted first-party caller; deployments
-    // can add their own origins with CORS_ORIGINS.
-    origin(origin, callback) {
-        callback(null, !origin || allowedOrigins.has(origin));
-    },
-    credentials: process.env.CORS_ALLOW_CREDENTIALS === 'true',
+    origin: '*',
+    credentials: false,
     methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Chunk-Index', 'X-Total-Chunks', 'X-Private', 'X-Access-Key']
 };
