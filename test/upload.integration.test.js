@@ -103,11 +103,13 @@ test('finalizes resumable APK uploads and protects private downloads', async () 
         headers: {
             Origin: 'https://untrusted.example',
             'Access-Control-Request-Method': 'GET',
-            'Access-Control-Request-Headers': 'authorization'
+            'Access-Control-Request-Headers': 'authorization, username, password, cvpn'
         }
     });
     assert.equal(permissivePreflight.response.status, 204);
-    assert.equal(permissivePreflight.response.headers.get('access-control-allow-origin'), '*');
+    assert.equal(permissivePreflight.response.headers.get('access-control-allow-origin'), 'https://untrusted.example');
+    assert.equal(permissivePreflight.response.headers.get('access-control-allow-credentials'), 'true');
+    assert.match(permissivePreflight.response.headers.get('access-control-allow-headers'), /password/);
 
     const totalSize = (1024 * 1024) + 1;
     const { response: initResponse, data: init } = await request('/api/file/upload/init', {

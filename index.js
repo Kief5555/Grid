@@ -271,10 +271,11 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
 const corsOptions = {
-    origin: '*',
-    credentials: false,
-    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Chunk-Index', 'X-Total-Chunks', 'X-Private', 'X-Access-Key']
+    // Reflect every request Origin. The web client uses credentialed requests,
+    // for which browsers reject the wildcard Access-Control-Allow-Origin value.
+    origin: true,
+    credentials: true,
+    methods: ['GET', 'POST', 'DELETE', 'OPTIONS']
 };
 app.use(cors(corsOptions));
 
