@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: PrintedWaste Grid Service API
   description: High-performance file hosting service with chunked uploads and Cloudflare compatibility
-  version: 2.0.0
+  version: 2.1.0
   contact:
     name: Kiefer Lin
     url: https://printedwaste.com
@@ -109,6 +109,10 @@ components:
         mime_type:
           type: string
           example: "application/pdf"
+        sha256:
+          type: string
+          description: SHA-256 checksum of the completed file
+          example: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
         created_at:
           type: string
           format: date-time
@@ -129,6 +133,9 @@ components:
         uploadUrl:
           type: string
           example: "/api/file/upload/chunk/session123"
+        completeUrl:
+          type: string
+          example: "/api/file/upload/complete/session123"
 
     UploadResult:
       type: object
@@ -143,6 +150,9 @@ components:
         size:
           type: integer
           example: 104857600
+        sha256:
+          type: string
+          example: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
 
     SystemStatus:
       type: object
@@ -243,6 +253,8 @@ paths:
         - System
       summary: Get system status
       description: Returns detailed system status and statistics
+      security:
+        - BearerAuth: []
       responses:
         '200':
           description: System status
@@ -388,6 +400,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+    delete:
+      tags:
+        - Files
+      summary: Delete file
+      description: Delete a file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: File ID
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: File deleted successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        type: null
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /api/file/upload/init:
     post:
@@ -423,6 +473,14 @@ paths:
                   maximum: 10485760
                   example: 5242880
                   description: Chunk size in bytes (1MB to 10MB, default 5MB)
+                private:
+                  type: boolean
+                  default: false
+                  description: Restrict the completed file to its owner
+                accessKey:
+                  type: boolean
+                  default: false
+                  description: Generate an additional access key for the completed file
       responses:
         '201':
           description: Upload session created
@@ -453,7 +511,7 @@ paths:
       tags:
         - Files
       summary: Upload chunk
-      description: Upload a chunk for chunked upload
+      description: Upload one validated chunk. Call the completion endpoint only after every chunk succeeds.
       parameters:
         - name: sessionID
           in: path
@@ -461,6 +519,18 @@ paths:
           schema:
             type: string
           description: Upload session ID
+        - name: X-Chunk-Index
+          in: header
+          required: true
+          schema:
+            type: string
+          description: Chunk index (0-based)
+        - name: X-Total-Chunks
+          in: header
+          required: true
+          schema:
+            type: string
+          description: Total number of chunks
       security:
         - BearerAuth: []
       requestBody:
@@ -474,29 +544,6 @@ paths:
                   type: string
                   format: binary
                   description: File chunk data
-      headers:
-        X-Chunk-Index:
-          description: Chunk index (0-based)
-          required: true
-          schema:
-            type: string
-        X-Total-Chunks:
-          description: Total number of chunks
-          required: true
-          schema:
-            type: string
-        X-Private:
-          description: Make file private
-          required: false
-          schema:
-            type: string
-            enum: ["true", "false"]
-        X-Access-Key:
-          description: Generate access key
-          required: false
-          schema:
-            type: string
-            enum: ["true", "false"]
       responses:
         '200':
           description: Chunk uploaded successfully
@@ -516,20 +563,12 @@ paths:
                           totalChunks:
                             type: integer
                             example: 20
+                          readyToComplete:
+                            type: boolean
+                            example: false
                           message:
                             type: string
                             example: "Chunk 5/20 uploaded"
-        '201':
-          description: All chunks uploaded, file created
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/Success'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/UploadResult'
         '400':
           description: Bad request
           content:
@@ -549,12 +588,112 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /api/file/upload/session/{sessionID}:
+    get:
+      tags:
+        - Files
+      summary: Get resumable upload status
+      description: Returns uploaded and missing chunk indexes for the authenticated session owner.
+      parameters:
+        - name: sessionID
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Upload session status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+        '404':
+          description: Upload session not found or expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags:
+        - Files
+      summary: Cancel incomplete upload
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sessionID
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Upload session cancelled
+        '409':
+          description: Upload was already completed
+
+  /api/file/upload/complete/{sessionID}:
+    post:
+      tags:
+        - Files
+      summary: Finalize chunked upload
+      description: Assembles all chunks, verifies the expected byte count, and returns a SHA-256 checksum. Safe to retry for the session lifetime.
+      parameters:
+        - name: sessionID
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Previously finalized upload result
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UploadResult'
+        '201':
+          description: Upload finalized
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UploadResult'
+        '409':
+          description: Upload has missing chunks or is already being finalized
+
   /api/file/upload:
     post:
       tags:
         - Files
       summary: Upload single file
       description: Upload a single file (under 100MB)
+      parameters:
+        - name: X-Private
+          in: header
+          description: Make file private
+          required: false
+          schema:
+            type: string
+            enum: ["true", "false"]
+        - name: X-Access-Key
+          in: header
+          description: Generate access key
+          required: false
+          schema:
+            type: string
+            enum: ["true", "false"]
       security:
         - BearerAuth: []
       requestBody:
@@ -568,19 +707,6 @@ paths:
                   type: string
                   format: binary
                   description: File to upload
-      headers:
-        X-Private:
-          description: Make file private
-          required: false
-          schema:
-            type: string
-            enum: ["true", "false"]
-        X-Access-Key:
-          description: Generate access key
-          required: false
-          schema:
-            type: string
-            enum: ["true", "false"]
       responses:
         '201':
           description: File uploaded successfully
@@ -601,46 +727,6 @@ paths:
                 $ref: '#/components/schemas/Error'
         '401':
           description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /api/file/{id}:
-    delete:
-      tags:
-        - Files
-      summary: Delete file
-      description: Delete a file
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-          description: File ID
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: File deleted successfully
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/Success'
-                  - type: object
-                    properties:
-                      data:
-                        type: null
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: File not found
           content:
             application/json:
               schema:

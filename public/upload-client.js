@@ -29,6 +29,7 @@ class GridUploadClient {
             accessKey: false,
             onProgress: null,
             onChunkProgress: null,
+            onUploadStarted: null,
             ...options
         };
 
@@ -82,85 +83,103 @@ class GridUploadClient {
      * Chunked upload for files over 100MB
      */
     async chunkedUpload(file, options) {
-        const sessionId = crypto.randomUUID();
-        const uploadId = `${sessionId}-${Date.now()}`;
+        const uploadId = GridUploadUtils.generateUploadId();
+        const controller = new AbortController();
+        const activeUpload = { uploadId, sessionID: null, cancelled: false, controller };
+        this.activeUploads.set(uploadId, activeUpload);
 
-        // Initialize upload session
-        const initResponse = await this.initUploadSession(file, options);
-        const { sessionID, totalChunks, chunkSize } = initResponse;
+        try {
+            // Initialize upload session
+            const initResponse = await this.initUploadSession(file, options, controller.signal);
+            const { sessionID, totalChunks, chunkSize } = initResponse;
+            activeUpload.sessionID = sessionID;
+            if (options.onUploadStarted) {
+                options.onUploadStarted({ uploadId, sessionID, totalChunks, chunkSize });
+            }
 
         // Create upload progress tracker
-        const progress = {
-            uploadedChunks: 0,
-            totalChunks,
-            totalSize: file.size,
-            uploadedSize: 0,
-            failedChunks: new Set(),
-            retryCount: 0
-        };
+            const progress = {
+                uploadedChunks: 0,
+                totalChunks,
+                totalSize: file.size,
+                uploadedSize: 0,
+                failedChunks: new Set(),
+                retryCount: 0
+            };
 
         // Upload chunks with concurrency control
-        const chunkPromises = [];
-        const semaphore = new Semaphore(this.options.concurrentChunks);
+            const chunkPromises = [];
+            const semaphore = new Semaphore(this.options.concurrentChunks);
 
-        for (let i = 0; i < totalChunks; i++) {
-            const chunkPromise = semaphore.acquire().then(async () => {
-                try {
-                    await this.uploadChunk(file, sessionID, i, totalChunks, chunkSize, progress, options);
-                } finally {
-                    semaphore.release();
-                }
-            });
-            chunkPromises.push(chunkPromise);
-        }
+            for (let i = 0; i < totalChunks; i++) {
+                const chunkPromise = semaphore.acquire().then(async () => {
+                    try {
+                        await this.uploadChunk(file, sessionID, i, totalChunks, chunkSize, progress, options, controller.signal);
+                    } finally {
+                        semaphore.release();
+                    }
+                });
+                chunkPromises.push(chunkPromise);
+            }
 
-        // Wait for all chunks to complete
-        await Promise.all(chunkPromises);
+            // Let every queued chunk settle. Promise.all used to reject on the
+            // first mobile-network failure, making the retry loop unreachable.
+            await Promise.allSettled(chunkPromises);
 
         // Check if any chunks failed and retry if needed
-        while (progress.failedChunks.size > 0 && progress.retryCount < this.options.maxRetries) {
-            progress.retryCount++;
-            console.log(`Retrying ${progress.failedChunks.size} failed chunks (attempt ${progress.retryCount})`);
+            while (progress.failedChunks.size > 0 && progress.retryCount < this.options.maxRetries) {
+                if (activeUpload.cancelled) {
+                    throw new Error('Upload cancelled');
+                }
+                progress.retryCount++;
+                console.log(`Retrying ${progress.failedChunks.size} failed chunks (attempt ${progress.retryCount})`);
 
-            const failedChunks = Array.from(progress.failedChunks);
-            progress.failedChunks.clear();
+                const failedChunks = Array.from(progress.failedChunks);
+                progress.failedChunks.clear();
 
-            await Promise.all(
-                failedChunks.map(chunkIndex =>
-                    semaphore.acquire().then(async () => {
-                        try {
-                            await this.uploadChunk(file, sessionID, chunkIndex, totalChunks, chunkSize, progress, options);
-                        } finally {
-                            semaphore.release();
-                        }
-                    })
-                )
-            );
+                await Promise.allSettled(
+                    failedChunks.map(chunkIndex =>
+                        semaphore.acquire().then(async () => {
+                            try {
+                                await this.uploadChunk(file, sessionID, chunkIndex, totalChunks, chunkSize, progress, options, controller.signal);
+                            } finally {
+                                semaphore.release();
+                            }
+                        })
+                    )
+                );
 
-            // Wait before retry
-            if (progress.failedChunks.size > 0) {
-                await this.delay(this.options.retryDelay * progress.retryCount);
+                // Wait before retry
+                if (progress.failedChunks.size > 0) {
+                    await this.delay(this.options.retryDelay * progress.retryCount);
+                }
             }
+
+            if (progress.failedChunks.size > 0) {
+                throw new Error(`Upload failed: ${progress.failedChunks.size} chunks could not be uploaded after ${this.options.maxRetries} retries`);
+            }
+            if (activeUpload.cancelled) {
+                throw new Error('Upload cancelled');
+            }
+
+            // Completion is an explicit, idempotent server operation. This avoids
+            // racing concurrent chunk requests on Android and other mobile clients.
+            const finalResponse = await this.finalizeUpload(sessionID, controller.signal);
+
+            if (options.onProgress) {
+                options.onProgress(100);
+            }
+
+            return finalResponse;
+        } finally {
+            this.activeUploads.delete(uploadId);
         }
-
-        if (progress.failedChunks.size > 0) {
-            throw new Error(`Upload failed: ${progress.failedChunks.size} chunks could not be uploaded after ${this.options.maxRetries} retries`);
-        }
-
-        // Finalize upload
-        const finalResponse = await this.finalizeUpload(sessionID, options);
-
-        if (options.onProgress) {
-            options.onProgress(100);
-        }
-
-        return finalResponse;
     }
 
     /**
      * Initialize upload session
      */
-    async initUploadSession(file, options) {
+    async initUploadSession(file, options, signal) {
         const response = await fetch(`${this.baseUrl}/api/file/upload/init`, {
             method: 'POST',
             headers: {
@@ -170,8 +189,11 @@ class GridUploadClient {
             body: JSON.stringify({
                 filename: file.name,
                 size: file.size,
-                chunkSize: this.options.chunkSize
-            })
+                chunkSize: this.options.chunkSize,
+                private: options.private,
+                accessKey: options.accessKey
+            }),
+            signal
         });
 
         if (!response.ok) {
@@ -185,7 +207,7 @@ class GridUploadClient {
     /**
      * Upload a single chunk
      */
-    async uploadChunk(file, sessionID, chunkIndex, totalChunks, chunkSize, progress, options) {
+    async uploadChunk(file, sessionID, chunkIndex, totalChunks, chunkSize, progress, options, signal) {
         const start = chunkIndex * chunkSize;
         const end = Math.min(start + chunkSize, file.size);
         const chunk = file.slice(start, end);
@@ -205,7 +227,8 @@ class GridUploadClient {
             const response = await fetch(`${this.baseUrl}/api/file/upload/chunk/${sessionID}`, {
                 method: 'POST',
                 headers,
-                body: formData
+                body: formData,
+                signal
             });
 
             if (!response.ok) {
@@ -241,12 +264,20 @@ class GridUploadClient {
     }
 
     /**
-     * Finalize upload (handled automatically in chunk upload)
+     * Finalize a fully uploaded session.
      */
-    async finalizeUpload(sessionID, options) {
-        // The finalization is handled automatically when the last chunk is uploaded
-        // This method is kept for potential future use
-        return { sessionID, message: 'Upload completed' };
+    async finalizeUpload(sessionID, signal) {
+        const response = await fetch(`${this.baseUrl}/api/file/upload/complete/${sessionID}`, {
+            method: 'POST',
+            headers: { 'Authorization': this.getAuthHeader() },
+            signal
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.errors?.[0] || 'Failed to finalize upload');
+        }
+        return result.data;
     }
 
     /**
@@ -290,8 +321,11 @@ class GridUploadClient {
         const upload = this.activeUploads.get(uploadId);
         if (upload) {
             upload.cancelled = true;
+            upload.controller.abort();
             this.activeUploads.delete(uploadId);
+            return true;
         }
+        return false;
     }
 
     /**
@@ -299,6 +333,20 @@ class GridUploadClient {
      */
     getUploadStatus(uploadId) {
         return this.activeUploads.get(uploadId);
+    }
+
+    /**
+     * Retrieve a resumable upload's missing chunk indexes from the server.
+     */
+    async getUploadSession(sessionID) {
+        const response = await fetch(`${this.baseUrl}/api/file/upload/session/${sessionID}`, {
+            headers: { 'Authorization': this.getAuthHeader() }
+        });
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.errors?.[0] || 'Upload session not found');
+        }
+        return result.data;
     }
 }
 

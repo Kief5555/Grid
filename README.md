@@ -11,6 +11,8 @@ A high-performance Node.js file hosting service with chunked uploads and Cloudfl
 - Compression and caching
 - Simple JSON-based storage
 - Support for images, videos, documents, and archives
+- Explicit, resumable chunk completion for mobile clients
+- SHA-256 checksums on completed uploads
 
 ## Setup
 
@@ -117,7 +119,7 @@ const initResponse = await fetch('/api/file/upload/init', {
     })
 });
 
-const { sessionID, totalChunks, chunkSize } = await initResponse.json();
+const { sessionID, totalChunks, chunkSize } = (await initResponse.json()).data;
 
 // Upload chunks
 for (let i = 0; i < totalChunks; i++) {
@@ -140,7 +142,18 @@ for (let i = 0; i < totalChunks; i++) {
         body: formData
     });
 }
+
+// Finalization is explicit so concurrent chunk requests cannot race the merge.
+const completeResponse = await fetch(`/api/file/upload/complete/${sessionID}`, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + token }
+});
+const completedFile = (await completeResponse.json()).data;
 ```
+
+Use `GET /api/file/upload/session/:sessionID` to retrieve uploaded and missing
+chunk indexes after an interrupted upload. Completion is safe to retry: for 24
+hours it returns the original file result instead of creating a second file.
 
 ### File Management
 
@@ -148,6 +161,9 @@ for (let i = 0; i < totalChunks; i++) {
 - `GET /download/:id?key=access-key` - Download file
 - `GET /view/:id?key=access-key` - View file
 - `DELETE /api/file/:id` - Delete file
+- `GET /api/file/upload/session/:sessionID` - Get resumable upload status
+- `POST /api/file/upload/complete/:sessionID` - Verify, checksum, and finalize a chunked upload
+- `DELETE /api/file/upload/session/:sessionID` - Cancel an incomplete upload
 
 ### User Management
 
@@ -165,12 +181,16 @@ for (let i = 0; i < totalChunks; i++) {
 | `JWT` | JWT secret key for authentication | Required |
 | `RKEY` | Registration key for new users | Required |
 | `PORT` | Server port | 3020 |
+| `CORS_ORIGINS` | Comma-separated browser origins permitted to call the API | Same-origin/native clients only |
+| `DATA_DIR` | JSON metadata directory | `./data` |
+| `FILES_DIR` | Completed file storage directory | `./files` |
+| `TEMP_DIR` | Chunk upload staging directory | `./temp` |
 
 ### Rate Limiting
 
-- General requests: 100 requests per 15 minutes per IP
-- Uploads: 10 uploads per hour per IP
-- Speed limiting: 500ms delay after 50 requests per 15 minutes
+- General requests: 500 requests per 15 minutes per IP (chunk requests excluded)
+- Login and registration: 10 attempts per 15 minutes per IP
+- Upload starts: 30 per hour per IP; chunks: 1,000 per hour per IP
 
 ### File Limits
 
@@ -178,6 +198,13 @@ for (let i = 0; i < totalChunks; i++) {
 - Chunked upload: 1GB maximum
 - Chunk size: 1MB to 10MB (default: 5MB)
 - Concurrent chunks: 3
+
+## Security and Android downloads
+
+- Browser origins are deny-by-default. Set `CORS_ORIGINS` for each trusted web client; native Android clients do not need an Origin header.
+- Private files require a token for the file owner. Files protected by an access key require that key as well and are never marked publicly cacheable.
+- APK downloads are served as `application/vnd.android.package-archive` with byte-range support, which lets Android's DownloadManager resume and hand off completed APKs to the package installer.
+- File metadata includes a SHA-256 checksum. Clients can compare it after download before prompting installation.
 
 ## Cloudflare Configuration
 
@@ -240,7 +267,7 @@ Response:
         "totalFiles": 1234,
         "totalUsers": 56,
         "totalSize": 1073741824,
-        "version": "2.0.0"
+        "version": "2.1.0"
     },
     "errors": []
 }
