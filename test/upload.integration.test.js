@@ -98,6 +98,16 @@ test('finalizes resumable APK uploads and protects private downloads', async () 
     assert.equal(publicStatus.response.status, 401);
     const authenticatedStatus = await request('/status', { token: ownerToken });
     assert.equal(authenticatedStatus.response.status, 200);
+    const firstPartyPreflight = await request('/status', {
+        method: 'OPTIONS',
+        headers: {
+            Origin: 'https://printedwaste.com',
+            'Access-Control-Request-Method': 'GET',
+            'Access-Control-Request-Headers': 'authorization'
+        }
+    });
+    assert.equal(firstPartyPreflight.response.status, 204);
+    assert.equal(firstPartyPreflight.response.headers.get('access-control-allow-origin'), 'https://printedwaste.com');
     const blockedCors = await request('/health', { headers: { Origin: 'https://untrusted.example' } });
     assert.equal(blockedCors.response.headers.get('access-control-allow-origin'), null);
 
