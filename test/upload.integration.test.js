@@ -181,13 +181,41 @@ test('finalizes resumable APK uploads and protects private downloads', async () 
     assert.equal(download.response.status, 200);
     assert.equal(download.response.headers.get('content-type'), 'application/vnd.android.package-archive');
     assert.equal(download.response.headers.get('accept-ranges'), 'bytes');
+    assert.equal(download.response.headers.get('content-length'), String(totalSize));
+    assert.equal(download.response.headers.get('etag'), `"${completed.data.data.sha256}"`);
+    assert.match(download.response.headers.get('cache-control'), /no-transform/);
     assert.equal(download.data.byteLength, totalSize);
 
+    const head = await request(`/download/${fileID}?key=${privateKey}`, {
+        method: 'HEAD',
+        token: ownerToken
+    });
+    assert.equal(head.response.status, 200);
+    assert.equal(head.response.headers.get('content-length'), String(totalSize));
+    assert.equal(head.response.headers.get('etag'), download.response.headers.get('etag'));
+    assert.equal(head.data.byteLength, 0);
+
+    // This matches Android DownloadManager's resume request: it keeps the ETag
+    // from the initial response and sends it in If-Match with an open range.
     const resumedDownload = await request(`/download/${fileID}?key=${privateKey}`, {
         token: ownerToken,
-        headers: { Range: 'bytes=0-0' }
+        headers: {
+            Range: 'bytes=1-',
+            'If-Match': download.response.headers.get('etag')
+        }
     });
     assert.equal(resumedDownload.response.status, 206);
-    assert.equal(resumedDownload.response.headers.get('content-range'), `bytes 0-0/${totalSize}`);
-    assert.equal(resumedDownload.data.byteLength, 1);
+    assert.equal(resumedDownload.response.headers.get('content-range'), `bytes 1-${totalSize - 1}/${totalSize}`);
+    assert.equal(resumedDownload.response.headers.get('content-length'), String(totalSize - 1));
+    assert.equal(resumedDownload.response.headers.get('etag'), download.response.headers.get('etag'));
+    assert.equal(resumedDownload.data.byteLength, totalSize - 1);
+
+    const staleResume = await request(`/download/${fileID}?key=${privateKey}`, {
+        token: ownerToken,
+        headers: {
+            Range: 'bytes=1-',
+            'If-Match': '"stale-checksum"'
+        }
+    });
+    assert.equal(staleResume.response.status, 412);
 });

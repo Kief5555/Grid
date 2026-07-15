@@ -202,7 +202,7 @@ hours it returns the original file result instead of creating a second file.
 
 - CORS reflects every origin and allows credentialed browser requests.
 - Private files require a token for the file owner. Files protected by an access key require that key as well and are never marked publicly cacheable.
-- APK downloads are served as `application/vnd.android.package-archive` with byte-range support, which lets Android's DownloadManager resume and hand off completed APKs to the package installer.
+- APK downloads are served with an exact content length, `application/vnd.android.package-archive`, byte-range support, and a stable strong ETag (checksum-backed for current uploads). This lets Android's DownloadManager verify completion and safely resume interrupted downloads before handing the APK to the package installer.
 - File metadata includes a SHA-256 checksum. Clients can compare it after download before prompting installation.
 
 ## Cloudflare Configuration

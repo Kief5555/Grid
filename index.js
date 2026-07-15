@@ -432,10 +432,27 @@ const canAccessFile = (req, file) => {
 
 const applyFileCacheHeaders = (res, file) => {
     if (file.private || file.accessKey) {
-        res.setHeader('Cache-Control', 'private, no-store');
+        res.setHeader('Cache-Control', 'private, no-store, no-transform');
     } else {
         res.setHeader('Cache-Control', 'public, max-age=259200, no-transform');
     }
+};
+
+const applyFileTransferHeaders = (res, file, stats) => {
+    res.type(getFileMimeType(file));
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Content-Length', stats.size);
+
+    // Android DownloadManager persists this validator and sends it back in
+    // If-Match when it retries with a Range request. Prefer the content checksum
+    // and fall back to the immutable file identity for older records, instead of
+    // relying on Express's weak mtime-based ETag through reverse proxies.
+    const entityTag = /^[a-f0-9]{64}$/i.test(file.sha256 || '')
+        ? file.sha256.toLowerCase()
+        : `${file.fileID}-${stats.size}`;
+    res.setHeader('ETag', `"${entityTag}"`);
+
+    applyFileCacheHeaders(res, file);
 };
 
 const getSessionDirectory = (sessionID) => path.join(tempDir, sessionID);
@@ -524,9 +541,9 @@ app.get('/view/:id', async (req, res) => {
             return res.status(404).json({ errors: ["File not found on disk"], success: false, data: null });
         }
 
-        res.type(getFileMimeType(file));
+        const stats = fs.statSync(fileLocation);
+        applyFileTransferHeaders(res, file, stats);
         res.setHeader('Content-Disposition', `inline; filename="${safeDownloadFilename(file.filename)}"`);
-        applyFileCacheHeaders(res, file);
         res.sendFile(fileLocation, { acceptRanges: true }, error => {
             if (error && !res.headersSent) {
                 console.error('View file stream error:', error);
@@ -557,11 +574,10 @@ app.get('/download/:id', async (req, res) => {
             return res.status(404).json({ errors: ["File not found on disk"], success: false, data: null });
         }
 
-        // Explicitly set the APK type and enable range requests so Android's
-        // DownloadManager can resume and hand the completed file to the installer.
-        res.type(getFileMimeType(file));
-        res.setHeader('Accept-Ranges', 'bytes');
-        applyFileCacheHeaders(res, file);
+        // Send an exact length and stable validator in addition to byte ranges;
+        // Android needs all three to finish or safely resume an APK download.
+        const stats = fs.statSync(fileLocation);
+        applyFileTransferHeaders(res, file, stats);
         res.download(fileLocation, safeDownloadFilename(file.filename), error => {
             if (error && !res.headersSent) {
                 console.error('Download file stream error:', error);
