@@ -332,11 +332,45 @@ paths:
       responses:
         '200':
           description: File download
+          headers:
+            Accept-Ranges:
+              description: Indicates that the download supports byte-range resume requests
+              schema:
+                type: string
+                example: bytes
+            Content-Length:
+              description: Exact response body size in bytes
+              schema:
+                type: integer
+            ETag:
+              description: Stable strong validator used by Android DownloadManager when resuming
+              schema:
+                type: string
           content:
             '*/*':
               schema:
                 type: string
                 format: binary
+        '206':
+          description: Partial file download for a valid byte range
+          headers:
+            Content-Range:
+              description: Byte range included in this response
+              schema:
+                type: string
+            ETag:
+              description: Stable strong validator for the file
+              schema:
+                type: string
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '412':
+          description: The If-Match validator does not match the current file
+        '416':
+          description: Requested byte range is not satisfiable
         '401':
           description: Unauthorized
           content:
